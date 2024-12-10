@@ -7,6 +7,8 @@ char *read_file_contents(const char *filename);
 int scan_paren(const char *content);
 void print_error(int ln, char err[]);
 void print_number(const char num[]);
+int scan_reserved(int i, const char content[]);
+char *strupr(char content[]);
 
 int main(int argc, char *argv[]) {
     // Disable output buffering
@@ -96,6 +98,19 @@ int scan_paren(const char *content) {
       last = 1;
     }
 
+    if (skip > 0) {
+      skip--;
+      continue;
+    }
+
+    if (stringed == 0 && iden_i == 0 && commented == 0) {
+      int res = scan_reserved(i, content);
+      if (res > 0) {
+        skip = res;
+        continue;
+      }
+    }
+
     if ((!digit && c != '.') && num_i > 0) {
       num[num_i] = '\0';
       print_number(num);
@@ -121,10 +136,6 @@ int scan_paren(const char *content) {
       continue;
     }
 
-    if (skip > 0) {
-      skip--;
-      continue;
-    }
 
     if (commented != 0) {
       continue;
@@ -338,4 +349,54 @@ void print_number(const char num[]) {
   } else {
     fprintf(stdout, "NUMBER %s %s\n", num, num);
   }
+}
+
+int scan_reserved(int index, const char content[]) {
+  char reserved[16][100] = {
+    "and", "class", "else", "false", "for", "fun", "if",
+    "nil", "or", "print", "return", "super", "this", "true",
+    "var", "while"
+  };
+
+  int total = strlen(content);
+  int skip = 0;
+
+  for (int i = 0; i < 16; i++) {
+    int len = strlen(reserved[i]);
+    if (len < 1) {
+      continue;
+    }
+    int h = 0;
+    int valid = 1;
+
+    for (int j=index; j < total && j-index < len; j++) {
+      if (content[j] != reserved[i][h]) {
+        valid = 0;
+        break;
+      }
+
+      h++;
+    }
+
+    if (valid == 1) {
+      char *up = strupr(reserved[i]);
+      fprintf(stdout, "%s %s null\n", up, reserved[i]);
+      skip = h - 1;
+      break;
+    }
+  }
+
+  return skip;
+}
+
+char *strupr(char content[]) {
+  int len = strlen(content);
+  char *up = malloc(len * sizeof(char));
+
+  for (int i=0; i < len; i++) {
+    up[i] = toupper(content[i]);
+  }
+
+  up[len] = '\0';
+  return up;
 }
