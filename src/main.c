@@ -3,7 +3,8 @@
 #include <string.h>
 
 char *read_file_contents(const char *filename);
-void scan_paren(const char *content);
+int scan_paren(const char *content);
+void print_error(int ln, char err[]);
 
 int main(int argc, char *argv[]) {
     // Disable output buffering
@@ -23,8 +24,8 @@ int main(int argc, char *argv[]) {
         char *file_contents = read_file_contents(argv[2]);
 
         if (strlen(file_contents) > 0) {
-          scan_paren(file_contents);
-          exit(0);
+          int code = scan_paren(file_contents);
+          exit(code);
         } 
         printf("EOF  null\n");       
         free(file_contents);
@@ -68,8 +69,10 @@ char *read_file_contents(const char *filename) {
     return file_contents;
 }
 
-void scan_paren(const char *content) {
+int scan_paren(const char *content) {
   int len = strlen(content);
+  int line = 1;
+  int code = 0;
 
   for (int i=0; i < len; i++) {
     char c = content[i];
@@ -121,8 +124,24 @@ void scan_paren(const char *content) {
 
     if (c == ';') {
       fprintf(stdout, "SEMICOLON ; null\n");
+      continue;
     }
+
+    if (c == '\n') {
+      line++;
+      continue;
+    }
+
+    char err[256];
+    sprintf(err, "Unexpected character: %c", content[i]);
+    print_error(line, err);
+    code = 65;
   }
 
   fprintf(stdout, "EOF  null\n");
+  return code;
+}
+
+void print_error(int ln, char err[]) {
+  fprintf(stderr, "[line %d] Error: %s\n", ln, err);
 }
