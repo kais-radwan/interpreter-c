@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 char *read_file_contents(const char *filename);
 int scan_paren(const char *content);
 void print_error(int ln, char err[]);
+void print_number(const char num[]);
 
 int main(int argc, char *argv[]) {
     // Disable output buffering
@@ -79,17 +81,41 @@ int scan_paren(const char *content) {
   char str[1024];
   int str_i = 0;
 
+  char num[1024];
+  int num_i = 0;
+  int last_num = 0;
+
   for (int i=0; i < len; i++) {
     char c = content[i];
     int last = 0;
+    int digit = isdigit(c);
 
     if (i == len-1) {
       last = 1;
     }
 
+    if ((!digit && c != '.') && num_i > 0) {
+      num[num_i] = '\0';
+      print_number(num);
+      memset(num, 0, strlen(num));
+      num_i = 0;
+    }
+
+    if (stringed == 0 && (digit || (last_num == 1 && c == '.'))) {  
+      last_num = 1;
+    } else {
+      last_num = 0;
+    }
+
     if (c == '\n') {
       line++;
       commented = 0;
+      if (num_i > 0) {
+        num[num_i] = '\0';
+        print_number(num);
+        memset(num, 0, strlen(num));
+        num_i = 0;
+      }
       continue;
     }
 
@@ -129,6 +155,12 @@ int scan_paren(const char *content) {
       continue;
     }
 
+    if (digit) {
+      num[num_i] = c;
+      num_i++;
+      continue;
+    }
+
     if (c == '(') {
       fprintf(stdout, "LEFT_PAREN ( null\n");
       continue;
@@ -155,7 +187,13 @@ int scan_paren(const char *content) {
     }
 
     if (c == '.') {
-      fprintf(stdout, "DOT . null\n");
+      if (last_num == 1 && last == 0 && isdigit(content[i+1]) != 0) {
+        num[num_i] = '.';
+        num_i++;
+      } else {
+        fprintf(stdout, "DOT . null\n");
+      }
+
       continue;
     }
 
@@ -244,10 +282,39 @@ int scan_paren(const char *content) {
     code = 65;
   }
 
+  if (num_i > 0) {
+    num[num_i] = '\0';
+    print_number(num);
+}
+
   fprintf(stdout, "EOF  null\n");
   return code;
 }
 
 void print_error(int ln, char err[]) {
   fprintf(stderr, "[line %d] Error: %s\n", ln, err);
+}
+
+void print_number(const char num[]) {
+  int num_i = strlen(num);
+  float f = atof(num);
+  int dot = 0;
+  int all_z = 0;
+
+  for (int i=0; i < num_i; i++) {
+    if (num[i] == '.') {
+      dot = 1;
+      continue;
+    }
+
+    if (dot == 1 && num[i] != '0') {
+      all_z = 1;
+    } 
+  }
+
+  if (dot == 0 || all_z == 0) {
+    fprintf(stdout, "NUMBER %s %0.f.0\n", num, f);
+  } else {
+    fprintf(stdout, "NUMBER %s %s\n", num, num);
+  }
 }
