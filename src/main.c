@@ -80,6 +80,8 @@ int scan_paren(const char *content) {
   int stringed = 0;
   char str[1024];
   int str_i = 0;
+  char iden[1024];
+  int iden_i = 0;
 
   char num[1024];
   int num_i = 0;
@@ -152,6 +154,12 @@ int scan_paren(const char *content) {
     }
 
     if  (c == ' ' || c == '\t') {
+      if (iden_i > 0) {
+        iden[iden_i] = '\0';
+        fprintf(stdout, "IDENTIFIER %s null\n", iden);
+        iden_i = 0;
+        memset(iden, 0, strlen(iden));
+      }
       continue;
     }
 
@@ -271,6 +279,12 @@ int scan_paren(const char *content) {
       continue;
     }
 
+    if (isalpha(c)) {
+      iden[iden_i] = c;
+      iden_i++;
+      continue;
+    }
+
     char err[256];
     sprintf(err, "Unexpected character: %c", content[i]);
     print_error(line, err);
@@ -285,7 +299,12 @@ int scan_paren(const char *content) {
   if (num_i > 0) {
     num[num_i] = '\0';
     print_number(num);
-}
+  }
+
+  if (iden_i > 0) {
+    iden[iden_i] = '\0';
+    fprintf(stdout, "IDENTIFIER %s null\n", iden);
+  }
 
   fprintf(stdout, "EOF  null\n");
   return code;
