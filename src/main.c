@@ -76,8 +76,21 @@ void scan_paren(const char *content) {
 
     if (c == '(') {
       fprintf(stdout, "LEFT_PAREN ( null\n");
-    } else if (c == ')') {
+      continue;
+    }
+
+    if (c == ')') {
       fprintf(stdout, "RIGHT_PAREN ) null\n");
+      continue;
+    }
+
+    if (c == '{') {
+      fprintf(stdout, "LEFT_BRACE { null\n");
+      continue;
+    }
+
+    if (c == '}') {
+      fprintf(stdout, "RIGHT_BRACE } null\n");
     }
   }
 
