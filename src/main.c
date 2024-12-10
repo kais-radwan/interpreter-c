@@ -86,12 +86,12 @@ int scan_paren(const char *content) {
 
     if (c == '\n') {
       line++;
+      commented = 0;
       continue;
     }
 
     if (skip > 0) {
       skip--;
-      commented = 0;
       continue;
     }
 
