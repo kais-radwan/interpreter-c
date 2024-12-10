@@ -3,6 +3,7 @@
 #include <string.h>
 
 char *read_file_contents(const char *filename);
+void scan_paren(const char *content);
 
 int main(int argc, char *argv[]) {
     // Disable output buffering
@@ -22,8 +23,8 @@ int main(int argc, char *argv[]) {
         char *file_contents = read_file_contents(argv[2]);
 
         if (strlen(file_contents) > 0) {
-            fprintf(stderr, "Scanner not implemented\n");
-            exit(1);
+          scan_paren(file_contents);
+          exit(1);
         } 
         printf("EOF  null\n");       
         free(file_contents);
@@ -65,4 +66,20 @@ char *read_file_contents(const char *filename) {
     fclose(file);
 
     return file_contents;
+}
+
+void scan_paren(const char *content) {
+  int len = strlen(content);
+
+  for (int i=0; i < len; i++) {
+    char c = content[i];
+
+    if (c == '(') {
+      fprintf(stdout, "LEFT_PAREN ( null");
+    } else if (c == ')') {
+      fprintf(stdout, "RIGHT_PAREN ( null");
+    }
+  }
+
+  fprintf(stdout, "EOF  null");
 }
