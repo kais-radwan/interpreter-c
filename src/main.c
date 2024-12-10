@@ -79,7 +79,7 @@ int scan_paren(const char *content) {
     char c = content[i];
     int last = 0;
 
-    if (skip != 0) {
+    if (skip > 0) {
       skip--;
       continue;
     }
@@ -133,6 +133,11 @@ int scan_paren(const char *content) {
       continue;
     }
 
+    if (c == ';') {
+      fprintf(stdout, "SEMICOLON ; null\n");
+      continue;
+    }
+
     if (c == '=') {
       if (last == 0 && content[i+1] == '=') {
         fprintf(stdout, "EQUAL_EQUAL == null\n");
@@ -144,8 +149,14 @@ int scan_paren(const char *content) {
       continue;
     }
 
-    if (c == ';') {
-      fprintf(stdout, "SEMICOLON ; null\n");
+    if (c == '!') {
+      if  (last == 0 && content[i+1] == '=') {
+        fprintf(stdout, "BANG_EQUAL != null\n");
+        skip++;
+      } else {
+        fprintf(stdout, "BANG ! null\n");
+      }
+
       continue;
     }
 
