@@ -75,6 +75,9 @@ int scan_paren(const char *content) {
   int code = 0;
   int skip = 0;
   int commented = 0;
+  int stringed = 0;
+  char str[1024];
+  int str_i = 0;
 
   for (int i=0; i < len; i++) {
     char c = content[i];
@@ -96,6 +99,29 @@ int scan_paren(const char *content) {
     }
 
     if (commented != 0) {
+      continue;
+    }
+
+    if (c == '"') {
+      if (stringed == 0) {
+        stringed = 1;
+      } else {
+        str[str_i] = '\0';
+        stringed = 0;
+        str_i = 0;
+
+        char log[1224];
+        sprintf(log, "STRING \"%s\" %s", str, str);
+        fprintf(stdout, "%s\n", log);
+        memset(str, 0, strlen(str));
+      }
+
+      continue;
+    }
+
+    if (stringed != 0) {
+      str[str_i] = c;
+      str_i++;
       continue;
     }
 
@@ -210,6 +236,11 @@ int scan_paren(const char *content) {
     char err[256];
     sprintf(err, "Unexpected character: %c", content[i]);
     print_error(line, err);
+    code = 65;
+  }
+
+  if (stringed != 0) {
+    print_error(line, "Unterminated string.");
     code = 65;
   }
 
