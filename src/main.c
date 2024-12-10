@@ -74,13 +74,24 @@ int scan_paren(const char *content) {
   int line = 1;
   int code = 0;
   int skip = 0;
+  int commented = 0;
 
   for (int i=0; i < len; i++) {
     char c = content[i];
     int last = 0;
 
+    if (c == '\n') {
+      line++;
+      continue;
+    }
+
     if (skip > 0) {
       skip--;
+      commented = 0;
+      continue;
+    }
+
+    if (commented != 0) {
       continue;
     }
 
@@ -182,8 +193,13 @@ int scan_paren(const char *content) {
       continue;
     }
 
-    if (c == '\n') {
-      line++;
+    if (c == '/') {
+      if  (last == 0 && content[i+1] == '/') {
+        commented = 1;
+      } else {
+        fprintf(stdout, "SLASH / null\n");
+      }
+
       continue;
     }
 
