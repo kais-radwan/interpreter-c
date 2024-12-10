@@ -75,11 +75,11 @@ void scan_paren(const char *content) {
     char c = content[i];
 
     if (c == '(') {
-      fprintf(stdout, "LEFT_PAREN ( null");
+      fprintf(stdout, "LEFT_PAREN ( null\n");
     } else if (c == ')') {
-      fprintf(stdout, "RIGHT_PAREN ( null");
+      fprintf(stdout, "RIGHT_PAREN ( null\n");
     }
   }
 
-  fprintf(stdout, "EOF  null");
+  fprintf(stdout, "EOF  null\n");
 }
