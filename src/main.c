@@ -91,6 +91,36 @@ void scan_paren(const char *content) {
 
     if (c == '}') {
       fprintf(stdout, "RIGHT_BRACE } null\n");
+      continue;
+    }
+
+    if (c == '*') {
+      fprintf(stdout, "STAR * null\n");
+      continue;
+    }
+
+    if (c == '.') {
+      fprintf(stdout, "DOT . null\n");
+      continue;
+    }
+
+    if (c == ',') {
+      fprintf(stdout, "COMMA , null\n");
+      continue;
+    }
+
+    if (c == '+') {
+      fprintf(stdout, "PLUS + null\n");
+      continue;
+    }
+
+    if (c == '-') {
+      fprintf(stdout, "MINUS - null\n");
+      continue;
+    }
+
+    if (c == ';') {
+      fprintf(stdout, "SEMICOLON ; null\n");
     }
   }
 
