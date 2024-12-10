@@ -160,6 +160,28 @@ int scan_paren(const char *content) {
       continue;
     }
 
+    if (c == '<') {
+      if (last == 0 && content[i+1] == '=') {
+        fprintf(stdout, "LESS_EQUAL <= null\n");
+        skip++;
+      } else {
+        fprintf(stdout, "LESS < null\n");
+      }
+
+      continue;
+    }
+
+    if (c == '>') {
+      if (last == 0 && content[i+1] == '=') {
+        fprintf(stdout, "GREATER_EQUAL >= null\n");
+        skip++;
+      } else {
+        fprintf(stdout, "GREATER > null\n");
+      }
+
+      continue;
+    }
+
     if (c == '\n') {
       line++;
       continue;
