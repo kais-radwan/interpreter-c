@@ -73,9 +73,20 @@ int scan_paren(const char *content) {
   int len = strlen(content);
   int line = 1;
   int code = 0;
+  int skip = 0;
 
   for (int i=0; i < len; i++) {
     char c = content[i];
+    int last = 0;
+
+    if (skip != 0) {
+      skip--;
+      continue;
+    }
+
+    if (i == len-1) {
+      last = 1;
+    }
 
     if (c == '(') {
       fprintf(stdout, "LEFT_PAREN ( null\n");
@@ -119,6 +130,17 @@ int scan_paren(const char *content) {
 
     if (c == '-') {
       fprintf(stdout, "MINUS - null\n");
+      continue;
+    }
+
+    if (c == '=') {
+      if (last == 0 && content[i+1] == '=') {
+        fprintf(stdout, "EQUAL_EQUAL == null\n");
+        skip++;
+      } else {
+        fprintf(stdout, "EQUAL = null\n");
+      }
+
       continue;
     }
 
