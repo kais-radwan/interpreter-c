@@ -80,6 +80,10 @@ int scan_paren(const char *content) {
     char c = content[i];
     int last = 0;
 
+    if (i == len-1) {
+      last = 1;
+    }
+
     if (c == '\n') {
       line++;
       continue;
@@ -95,8 +99,8 @@ int scan_paren(const char *content) {
       continue;
     }
 
-    if (i == len-1) {
-      last = 1;
+    if  (c == ' ' || c == '\t') {
+      continue;
     }
 
     if (c == '(') {
