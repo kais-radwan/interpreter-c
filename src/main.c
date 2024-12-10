@@ -103,7 +103,7 @@ int scan_paren(const char *content) {
       num_i = 0;
     }
 
-    if (stringed == 0 && (digit || (last_num == 1 && c == '.'))) {  
+    if (stringed == 0 && iden_i == 0 && (digit || (last_num == 1 && c == '.'))) {  
       last_num = 1;
     } else {
       last_num = 0;
@@ -153,17 +153,19 @@ int scan_paren(const char *content) {
       continue;
     }
 
+
+    if (iden_i > 0 && ((!isalpha(c) && c != '_') && !digit)) {
+      iden[iden_i] = '\0';
+      fprintf(stdout, "IDENTIFIER %s null\n", iden);
+      iden_i = 0;
+      memset(iden, 0, strlen(iden));
+    }
+
     if  (c == ' ' || c == '\t') {
-      if (iden_i > 0) {
-        iden[iden_i] = '\0';
-        fprintf(stdout, "IDENTIFIER %s null\n", iden);
-        iden_i = 0;
-        memset(iden, 0, strlen(iden));
-      }
       continue;
     }
 
-    if (digit) {
+    if (digit && iden_i == 0) {
       num[num_i] = c;
       num_i++;
       continue;
@@ -279,7 +281,7 @@ int scan_paren(const char *content) {
       continue;
     }
 
-    if (isalpha(c)) {
+    if ((iden > 0 && digit) || (isalpha(c) || c == '_')) {
       iden[iden_i] = c;
       iden_i++;
       continue;
