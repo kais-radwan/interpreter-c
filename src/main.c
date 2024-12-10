@@ -77,7 +77,7 @@ void scan_paren(const char *content) {
     if (c == '(') {
       fprintf(stdout, "LEFT_PAREN ( null\n");
     } else if (c == ')') {
-      fprintf(stdout, "RIGHT_PAREN ( null\n");
+      fprintf(stdout, "RIGHT_PAREN ) null\n");
     }
   }
 
