@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
 
         if (strlen(file_contents) > 0) {
           scan_paren(file_contents);
-          exit(1);
+          exit(0);
         } 
         printf("EOF  null\n");       
         free(file_contents);
