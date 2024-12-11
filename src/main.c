@@ -10,8 +10,9 @@ void print_number(const char num[]);
 int scan_reserved(int i, const char content[]);
 char *strupr(char content[]);
 
+void parse(char *content);
+
 int main(int argc, char *argv[]) {
-    // Disable output buffering
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
 
@@ -21,11 +22,10 @@ int main(int argc, char *argv[]) {
     }
 
     const char *command = argv[1];
+    char *file_contents = read_file_contents(argv[2]);
 
     if (strcmp(command, "tokenize") == 0) {
         fprintf(stderr, "Logs from your program will appear here!\n");
-        
-        char *file_contents = read_file_contents(argv[2]);
 
         if (strlen(file_contents) > 0) {
           int code = scan_paren(file_contents);
@@ -33,7 +33,10 @@ int main(int argc, char *argv[]) {
         } 
         printf("EOF  null\n");       
         free(file_contents);
-    } else {
+    } else if (strcmp(command, "parse") == 0) {
+      parse(file_contents);
+    }
+    else {
         fprintf(stderr, "Unknown command: %s\n", command);
         return 1;
     }
@@ -399,4 +402,34 @@ char *strupr(char content[]) {
 
   up[len] = '\0';
   return up;
+}
+
+void parse(char *content) {
+  int len = strlen(content);
+  char *data = malloc(len * sizeof(char));
+  int h = 0;
+
+  for (int i = 0; i < len; i++) {
+    char c = content[i];
+    if (c == '\n') {
+      continue;
+    }
+
+    data[h] = c;
+    h++;
+  }
+
+  data[h] = '\0';
+
+  if (strcmp(data, "true") == 0) {
+    fprintf(stdout, "true\n");
+  }
+
+  if (strcmp(data, "false") == 0) {
+    fprintf(stdout, "false\n");
+  }
+
+  if (strcmp(data, "nil") == 0) {
+    fprintf(stdout, "nil\n");
+  }
 }
