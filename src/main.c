@@ -3,11 +3,18 @@
 #include <string.h>
 #include <ctype.h>
 
+#define BUFFER_SIZE 1024
+
+typedef struct {
+  int code;
+  char *tokens;
+} ScanResult;
+
 char *read_file_contents(const char *filename);
-int scan_paren(const char *content);
-void print_error(int ln, char err[]);
-void print_number(const char num[]);
-int scan_reserved(int i, const char content[]);
+ScanResult scan(const char *content, int log);
+char *print_error(int ln, char err[]);
+char *print_number(const char num[], int log);
+ScanResult scan_reserved(int i, const char content[], int log);
 char *strupr(char content[]);
 
 void parse(char *content);
@@ -28,13 +35,14 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Logs from your program will appear here!\n");
 
         if (strlen(file_contents) > 0) {
-          int code = scan_paren(file_contents);
-          exit(code);
+          ScanResult scan_res = scan(file_contents, 1);
+          exit(scan_res.code);
         } 
         printf("EOF  null\n");       
         free(file_contents);
     } else if (strcmp(command, "parse") == 0) {
       parse(file_contents);
+      return 0;
     }
     else {
         fprintf(stderr, "Unknown command: %s\n", command);
@@ -76,7 +84,16 @@ char *read_file_contents(const char *filename) {
     return file_contents;
 }
 
-int scan_paren(const char *content) {
+void append_to_buffer(char **buffer, size_t *size, const char *token) {
+  size_t token_len = strlen(token);
+  size_t new_size = *size + token_len + 2; // +1 for '\n' and +1 for '\0'
+  *buffer = realloc(*buffer, new_size);
+  strcat(*buffer, token);
+  strcat(*buffer, "\n");
+  *size = new_size;
+}
+
+ScanResult scan(const char *content, int log) {
   int len = strlen(content);
   int line = 1;
   int code = 0;
@@ -87,19 +104,18 @@ int scan_paren(const char *content) {
   int str_i = 0;
   char iden[1024];
   int iden_i = 0;
-
   char num[1024];
   int num_i = 0;
   int last_num = 0;
 
-  for (int i=0; i < len; i++) {
-    char c = content[i];
-    int last = 0;
-    int digit = isdigit(c);
+  char *tokens_buffer = malloc(1);
+  size_t buffer_size = 1;
+  tokens_buffer[0] = '\0';
 
-    if (i == len-1) {
-      last = 1;
-    }
+  for (int i = 0; i < len; i++) {
+    char c = content[i];
+    int last = (i == len - 1);
+    int digit = isdigit(c);
 
     if (skip > 0) {
       skip--;
@@ -107,106 +123,172 @@ int scan_paren(const char *content) {
     }
 
     if (stringed == 0 && iden_i == 0 && commented == 0) {
-      int res = scan_reserved(i, content);
-      if (res > 0) {
-        skip = res;
+      ScanResult res = scan_reserved(i, content, log);
+      if (res.code > 0) {
+        skip = res.code;
+        append_to_buffer(&tokens_buffer, &buffer_size, res.tokens);
         continue;
       }
     }
 
     if ((!digit && c != '.') && num_i > 0) {
       num[num_i] = '\0';
-      print_number(num);
-      memset(num, 0, strlen(num));
+      char *value = print_number(num, log);
+      append_to_buffer(&tokens_buffer, &buffer_size, value);
+      memset(num, 0, sizeof(num));
       num_i = 0;
     }
 
-    if (stringed == 0 && iden_i == 0 && (digit || (last_num == 1 && c == '.'))) {  
+    if (stringed == 0 && iden_i == 0 && (digit || (last_num == 1 && c == '.'))) {
       last_num = 1;
     } else {
       last_num = 0;
     }
 
     if (c == '\n') {
-      line++;
+      if (!last) {
+        line++;
+      }
       commented = 0;
       if (num_i > 0) {
         num[num_i] = '\0';
-        print_number(num);
-        memset(num, 0, strlen(num));
+        char *value = print_number(num, log);
+        append_to_buffer(&tokens_buffer, &buffer_size, value);
+        memset(num, 0, sizeof(num));
         num_i = 0;
       }
       continue;
     }
 
-
-    if (commented != 0) {
-      continue;
-    }
+    if (commented) continue;
 
     if (c == '"') {
       if (stringed == 0) {
         stringed = 1;
       } else {
         str[str_i] = '\0';
+        char *value = malloc((strlen(str) + 50) * sizeof(char));
+        sprintf(value, "STRING \"%s\"", str, str);
+        append_to_buffer(&tokens_buffer, &buffer_size, value);
+        if (log) fprintf(stdout, "STRING \"%s\" %s\n", str, str);
         stringed = 0;
         str_i = 0;
+        memset(str, 0, sizeof(str));
+      }
+      continue;
+    }
 
-        char log[1224];
-        sprintf(log, "STRING \"%s\" %s", str, str);
-        fprintf(stdout, "%s\n", log);
-        memset(str, 0, strlen(str));
+    if (stringed) {
+      str[str_i++] = c;
+      continue;
+    }
+
+    if (iden_i > 0 && ((!isalpha(c) && c != '_') && !digit)) {
+      iden[iden_i] = '\0';
+      char value[256];
+      sprintf(value, "IDENTIFIER %s null", iden);
+      append_to_buffer(&tokens_buffer, &buffer_size, value);
+      if (log) fprintf(stdout, "%s\n", value);
+      iden_i = 0;
+      memset(iden, 0, sizeof(iden));
+    }
+
+    if (c == ' ' || c == '\t') continue;
+
+    if (digit && iden_i == 0) {
+      num[num_i++] = c;
+      continue;
+    }
+
+    int valid = 0;
+    const char *single_tokens[] = {
+      "(", ")", "{", "}", "*", ",", "+", "-", ";", "<=", ">=", "<", ">"
+    };
+    const char *single_token_names[] = {
+      "LEFT_PAREN", "RIGHT_PAREN", "LEFT_BRACE", "RIGHT_BRACE", "STAR", "COMMA",
+      "PLUS", "MINUS", "SEMICOLON", "LESS_EQUAL", "GREATER_EQUAL", 
+      "LESS", "GREATER"
+    };
+
+    for (int t = 0; t < sizeof(single_tokens) / sizeof(single_tokens[0]); t++) {
+      int this_one = 0;
+
+      if (c == single_tokens[t][0] && strlen(single_tokens[t]) == 1) {
+        this_one = 1;
+      } else if (
+        c == single_tokens[t][0] && strlen(single_tokens[t]) > 1
+        && !last && content[i+1] == single_tokens[t][1]
+      ) {
+        this_one = 1;
+        skip++;
+      }
+
+      if (this_one) {
+        char value[256];
+        sprintf(value, "%s %s null", single_token_names[t], single_tokens[t]);
+        append_to_buffer(&tokens_buffer, &buffer_size, value);
+        if (log) fprintf(stdout, "%s\n", value);
+        valid = 1;
+        break;
+      }
+    }
+
+    if (valid) {
+      continue;
+    }
+
+    if (c == '/') {
+      if  (!last && content[i+1] == '/') {
+        commented = 1;
+        skip++;
+      } else {
+        char value[50] = "SLASH / null";
+        append_to_buffer(&tokens_buffer, &buffer_size, value);
+        if (log) fprintf(stdout, "%s\n", value);
       }
 
       continue;
     }
 
-    if (stringed != 0) {
-      str[str_i] = c;
-      str_i++;
+    if (c == '=') {
+      char value[60];
+      if (last == 0 && content[i+1] == '=') {
+        strcpy(value, "EQUAL_EQUAL == null");
+        skip++;
+      } else {
+        strcpy(value, "EQUAL = null");
+      }
+
+      append_to_buffer(&tokens_buffer, &buffer_size, value);
+      if (log) fprintf(stdout, "%s\n", value);
       continue;
     }
 
+    if (c == '!') {
+      char value[60];
+      if (last == 0 && content[i+1] == '=') {
+        strcpy(value, "BANG_EQUAL != null");
+        skip++;
+      } else {
+        strcpy(value, "BANG ! null");
+      }
 
-    if (iden_i > 0 && ((!isalpha(c) && c != '_') && !digit)) {
-      iden[iden_i] = '\0';
-      fprintf(stdout, "IDENTIFIER %s null\n", iden);
-      iden_i = 0;
-      memset(iden, 0, strlen(iden));
-    }
-
-    if  (c == ' ' || c == '\t') {
+      append_to_buffer(&tokens_buffer, &buffer_size, value);
+      if (log) fprintf(stdout, "%s\n", value);
       continue;
     }
 
-    if (digit && iden_i == 0) {
-      num[num_i] = c;
-      num_i++;
-      continue;
-    }
+    if (c == '!') {
+      char value[60];
+      if (last == 0 && content[i+1] == '=') {
+        strcpy(value, "BANG_EQUAL != null");
+        skip++;
+      } else {
+        strcpy(value, "BANG ! null");
+      }
 
-    if (c == '(') {
-      fprintf(stdout, "LEFT_PAREN ( null\n");
-      continue;
-    }
-
-    if (c == ')') {
-      fprintf(stdout, "RIGHT_PAREN ) null\n");
-      continue;
-    }
-
-    if (c == '{') {
-      fprintf(stdout, "LEFT_BRACE { null\n");
-      continue;
-    }
-
-    if (c == '}') {
-      fprintf(stdout, "RIGHT_BRACE } null\n");
-      continue;
-    }
-
-    if (c == '*') {
-      fprintf(stdout, "STAR * null\n");
+      append_to_buffer(&tokens_buffer, &buffer_size, value);
+      if (log) fprintf(stdout, "%s\n", value);
       continue;
     }
 
@@ -215,126 +297,65 @@ int scan_paren(const char *content) {
         num[num_i] = '.';
         num_i++;
       } else {
-        fprintf(stdout, "DOT . null\n");
-      }
-
-      continue;
-    }
-
-    if (c == ',') {
-      fprintf(stdout, "COMMA , null\n");
-      continue;
-    }
-
-    if (c == '+') {
-      fprintf(stdout, "PLUS + null\n");
-      continue;
-    }
-
-    if (c == '-') {
-      fprintf(stdout, "MINUS - null\n");
-      continue;
-    }
-
-    if (c == ';') {
-      fprintf(stdout, "SEMICOLON ; null\n");
-      continue;
-    }
-
-    if (c == '=') {
-      if (last == 0 && content[i+1] == '=') {
-        fprintf(stdout, "EQUAL_EQUAL == null\n");
-        skip++;
-      } else {
-        fprintf(stdout, "EQUAL = null\n");
-      }
-
-      continue;
-    }
-
-    if (c == '!') {
-      if  (last == 0 && content[i+1] == '=') {
-        fprintf(stdout, "BANG_EQUAL != null\n");
-        skip++;
-      } else {
-        fprintf(stdout, "BANG ! null\n");
-      }
-
-      continue;
-    }
-
-    if (c == '<') {
-      if (last == 0 && content[i+1] == '=') {
-        fprintf(stdout, "LESS_EQUAL <= null\n");
-        skip++;
-      } else {
-        fprintf(stdout, "LESS < null\n");
-      }
-
-      continue;
-    }
-
-    if (c == '>') {
-      if (last == 0 && content[i+1] == '=') {
-        fprintf(stdout, "GREATER_EQUAL >= null\n");
-        skip++;
-      } else {
-        fprintf(stdout, "GREATER > null\n");
-      }
-
-      continue;
-    }
-
-    if (c == '/') {
-      if  (last == 0 && content[i+1] == '/') {
-        commented = 1;
-      } else {
-        fprintf(stdout, "SLASH / null\n");
+        char value[100] = "DOT . null";
+        if (log) fprintf(stdout, "%s\n", value);
+        append_to_buffer(&tokens_buffer, &buffer_size, value);
       }
 
       continue;
     }
 
     if ((iden > 0 && digit) || (isalpha(c) || c == '_')) {
-      iden[iden_i] = c;
-      iden_i++;
+      iden[iden_i++] = c;
       continue;
     }
 
     char err[256];
-    sprintf(err, "Unexpected character: %c", content[i]);
-    print_error(line, err);
+    sprintf(err, "Unexpected character: %c", c);
+    char *error = print_error(line, err);
+    if (log) fprintf(stderr, "%s\n", error);
     code = 65;
   }
 
-  if (stringed != 0) {
-    print_error(line, "Unterminated string.");
+  if (stringed) {
+    char *error = print_error(line, "Unterminated string.");
+    if (log) fprintf(stderr, "%s\n", error);
     code = 65;
   }
 
   if (num_i > 0) {
     num[num_i] = '\0';
-    print_number(num);
+    char *value = print_number(num, log);
+    append_to_buffer(&tokens_buffer, &buffer_size, value);
   }
 
   if (iden_i > 0) {
     iden[iden_i] = '\0';
-    fprintf(stdout, "IDENTIFIER %s null\n", iden);
+    char value[256];
+    sprintf(value, "IDENTIFIER %s null", iden);
+    append_to_buffer(&tokens_buffer, &buffer_size, value);
+    if (log) fprintf(stdout, "%s\n", value);
   }
 
-  fprintf(stdout, "EOF  null\n");
-  return code;
+  append_to_buffer(&tokens_buffer, &buffer_size, "EOF\n");
+  if (log) fprintf(stdout, "EOF  null\n");
+
+  return (ScanResult){code, tokens_buffer};
 }
 
-void print_error(int ln, char err[]) {
-  fprintf(stderr, "[line %d] Error: %s\n", ln, err);
+char *print_error(int ln, char err[]) {
+  char *value = malloc((strlen(err) + 50) * sizeof(char));
+  sprintf(value, "[line %d] Error: %s\n", ln, err);
+
+  return value;
 }
 
-void print_number(const char num[]) {
+char *print_number(const char num[], int log) {
   int num_i = strlen(num);
   float f = atof(num);
   int dot = 0;
   int all_z = 0;
+  char *res = malloc((strlen(num) + 40) & sizeof(char));
 
   for (int i=0; i < num_i; i++) {
     if (num[i] == '.') {
@@ -348,13 +369,18 @@ void print_number(const char num[]) {
   }
 
   if (dot == 0 || all_z == 0) {
-    fprintf(stdout, "NUMBER %s %0.f.0\n", num, f);
+    sprintf(res, "NUMBER %s %0.f.0", num, f);
   } else {
-    fprintf(stdout, "NUMBER %s %s\n", num, num);
+    sprintf(res, "NUMBER %s %s", num, num);
   }
+
+  if (log) {
+    fprintf(stdout, "%s\n", res);
+  }
+  return res;
 }
 
-int scan_reserved(int index, const char content[]) {
+ScanResult scan_reserved(int index, const char content[], int log) {
   char reserved[16][100] = {
     "and", "class", "else", "false", "for", "fun", "if",
     "nil", "or", "print", "return", "super", "this", "true",
@@ -363,6 +389,7 @@ int scan_reserved(int index, const char content[]) {
 
   int total = strlen(content);
   int skip = 0;
+  char token[BUFFER_SIZE];
 
   for (int i = 0; i < 16; i++) {
     int len = strlen(reserved[i]);
@@ -383,13 +410,16 @@ int scan_reserved(int index, const char content[]) {
 
     if (valid == 1) {
       char *up = strupr(reserved[i]);
-      fprintf(stdout, "%s %s null\n", up, reserved[i]);
+      if (log) {
+        fprintf(stdout, "%s %s null\n", up, reserved[i]);
+      }
+      sprintf(token, "%s %s null\n", up, reserved[i]);
       skip = h - 1;
       break;
     }
   }
 
-  return skip;
+  return (ScanResult) {skip, token};
 }
 
 char *strupr(char content[]) {
@@ -404,32 +434,67 @@ char *strupr(char content[]) {
   return up;
 }
 
-void parse(char *content) {
-  int len = strlen(content);
-  char *data = malloc(len * sizeof(char));
-  int h = 0;
+char *read_token(char *content) {
+  char *space = strchr(content, ' ');
+  char *token = malloc(strlen(content) * sizeof(char));
 
-  for (int i = 0; i < len; i++) {
-    char c = content[i];
-    if (c == '\n') {
-      continue;
+  if (space != NULL) {
+    size_t length = space - content;
+    strncpy(token, content, length);
+    token[length] = '\0';
+  }
+
+  return token;
+}
+
+void parse_line(char *line) {
+  char buffer[BUFFER_SIZE];
+  char *token = read_token(line);
+
+  char base[3][6] = {
+    "TRUE", "FALSE", "NIL"
+  };
+
+  char base_low[3][6] = {
+    "true", "false", "nil"
+  };
+
+  for (int i=0; i < sizeof(base) / sizeof(base[0]); i++) {
+    if (strcmp(token, base[i]) == 0) {
+      fprintf(stdout, "%s\n", base_low[i]);
+      break;
+    }
+  }
+
+  if (strcmp(token, "NUMBER") == 0) {
+    char *num = line + strlen(token) + 1;
+    num = read_token(num);
+    num = line + strlen(token) + 1 + strlen(num) + 1;
+    fprintf(stdout, "%s\n", num);
+  }
+}
+
+void parse(char *content) {
+  ScanResult scanned = scan(content, 0);
+  char buffer[BUFFER_SIZE];
+  char *line = scanned.tokens;
+  char *newline;
+
+  while (line != NULL) {
+    newline = strchr(line, '\n');
+
+    if (newline != NULL) {
+      *newline = '\0';
     }
 
-    data[h] = c;
-    h++;
-  }
+    if (strlen(line) > 0) {
+      parse_line(line);
+    }
 
-  data[h] = '\0';
-
-  if (strcmp(data, "true") == 0) {
-    fprintf(stdout, "true\n");
-  }
-
-  if (strcmp(data, "false") == 0) {
-    fprintf(stdout, "false\n");
-  }
-
-  if (strcmp(data, "nil") == 0) {
-    fprintf(stdout, "nil\n");
+    if (newline != NULL) {
+      line = newline + 1;
+    } else {
+      break;
+    }
   }
 }
