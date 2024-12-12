@@ -13,7 +13,7 @@ typedef struct {
 char *read_file_contents(const char *filename);
 ScanResult scan(const char *content, int log);
 char *print_error(int ln, char err[]);
-char *print_number(const char num[], int log);
+char *print_number(char num[], int log);
 ScanResult scan_reserved(int i, const char content[], int log);
 char *strupr(char content[]);
 
@@ -168,7 +168,7 @@ ScanResult scan(const char *content, int log) {
       } else {
         str[str_i] = '\0';
         char *value = malloc((strlen(str) + 50) * sizeof(char));
-        sprintf(value, "STRING \"%s\"", str, str);
+        sprintf(value, "STRING %s", str, str);
         append_to_buffer(&tokens_buffer, &buffer_size, value);
         if (log) fprintf(stdout, "STRING \"%s\" %s\n", str, str);
         stringed = 0;
@@ -350,7 +350,7 @@ char *print_error(int ln, char err[]) {
   return value;
 }
 
-char *print_number(const char num[], int log) {
+char *print_number(char num[], int log) {
   int num_i = strlen(num);
   float f = atof(num);
   int dot = 0;
@@ -359,11 +359,16 @@ char *print_number(const char num[], int log) {
 
   for (int i=0; i < num_i; i++) {
     if (num[i] == '.') {
-      dot = 1;
+      dot = i;
       continue;
     }
 
-    if (dot == 1 && num[i] != '0') {
+    if (dot && i == num_i-1 && num[i] == '0' && dot != i-1 && all_z) {
+      num[i] = '\0';
+      continue;
+    }
+
+    if (dot && num[i] != '0') {
       all_z = 1;
     } 
   }
@@ -469,8 +474,13 @@ void parse_line(char *line) {
   if (strcmp(token, "NUMBER") == 0) {
     char *num = line + strlen(token) + 1;
     num = read_token(num);
-    num = line + strlen(token) + 1 + strlen(num) + 1;
+    num = line + strlen(token) + strlen(num) + 2;
     fprintf(stdout, "%s\n", num);
+  }
+
+  if (strcmp(token, "STRING") == 0) {
+    char *str = line + strlen(token) + 1;
+    fprintf(stdout, "%s\n", str);
   }
 }
 
