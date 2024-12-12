@@ -12,6 +12,7 @@ typedef struct {
 
 typedef struct {
   int grouped;
+  int minnext;
 } ParseResult;
 
 char *read_file_contents(const char *filename);
@@ -464,9 +465,10 @@ void parse_print(char *value, int grouped) {
   }
 }
 
-ParseResult parse_line(char *line, int *grouped) {
+ParseResult parse_line(char *line, int *grouped, int *subnext) {
   char buffer[BUFFER_SIZE];
   char *token = read_token(line);
+  int subnow = 0;
 
   char base[3][6] = {
     "TRUE", "FALSE", "NIL"
@@ -498,15 +500,33 @@ ParseResult parse_line(char *line, int *grouped) {
   else if (strcmp(token, "LEFT_PAREN") == 0) {
     fprintf(stdout, "(group ");
     *grouped = *grouped + 1;
-    return (ParseResult) {1};
+    return (ParseResult) {1, 0};
   }
 
   else if (strcmp(token, "RIGHT_PAREN") == 0) {
-    *grouped--;
+    *grouped = *grouped - 1;
     parse_print(")", *grouped);
   }
 
-  return (ParseResult) {0};
+  else if (strcmp(token, "BANG") == 0) {
+    *grouped = *grouped + 1;
+    fprintf(stdout, "(! ");
+    subnow++;
+  }
+
+  else if (strcmp(token, "MINUS") == 0) {
+    *grouped = *grouped + 1;
+    fprintf(stdout, "(- ");
+    subnow = *grouped || 1;
+  }
+
+  if (*subnext > 0 && (*subnext == *grouped || *grouped == 1)) {
+    parse_print(")", *grouped);
+    *subnext = *subnext - 1;
+    *grouped = *grouped - 1;
+  }
+
+  return (ParseResult) {0, subnow};
 }
 
 void parse(char *content) {
@@ -515,6 +535,7 @@ void parse(char *content) {
   char *line = scanned.tokens;
   char *newline;
   int grouped = 0;
+  int subnext = 0;
 
   while (line != NULL) {
     newline = strchr(line, '\n');
@@ -524,7 +545,8 @@ void parse(char *content) {
     }
 
     if (strlen(line) > 0) {
-      parse_line(line, &grouped);
+      ParseResult parsed = parse_line(line, &grouped, &subnext);
+      subnext = subnext + parsed.minnext;
     }
 
     if (newline != NULL) {
@@ -532,5 +554,10 @@ void parse(char *content) {
     } else {
       break;
     }
+  }
+
+  while (grouped > 0) {
+    grouped--;
+    parse_print(")", grouped);
   }
 }
