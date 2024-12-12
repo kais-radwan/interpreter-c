@@ -10,6 +10,10 @@ typedef struct {
   char *tokens;
 } ScanResult;
 
+typedef struct {
+  int grouped;
+} ParseResult;
+
 char *read_file_contents(const char *filename);
 ScanResult scan(const char *content, int log);
 char *print_error(int ln, char err[]);
@@ -452,7 +456,15 @@ char *read_token(char *content) {
   return token;
 }
 
-void parse_line(char *line) {
+void parse_print(char *value, int grouped) {
+  if (grouped > 0) {
+    fprintf(stdout, value);
+  } else {
+    fprintf(stdout, "%s\n", value);
+  }
+}
+
+ParseResult parse_line(char *line, int *grouped) {
   char buffer[BUFFER_SIZE];
   char *token = read_token(line);
 
@@ -466,7 +478,7 @@ void parse_line(char *line) {
 
   for (int i=0; i < sizeof(base) / sizeof(base[0]); i++) {
     if (strcmp(token, base[i]) == 0) {
-      fprintf(stdout, "%s\n", base_low[i]);
+      parse_print(base_low[i], *grouped);
       break;
     }
   }
@@ -475,13 +487,26 @@ void parse_line(char *line) {
     char *num = line + strlen(token) + 1;
     num = read_token(num);
     num = line + strlen(token) + strlen(num) + 2;
-    fprintf(stdout, "%s\n", num);
+    parse_print(num, *grouped);
   }
 
-  if (strcmp(token, "STRING") == 0) {
+  else if (strcmp(token, "STRING") == 0) {
     char *str = line + strlen(token) + 1;
-    fprintf(stdout, "%s\n", str);
+    parse_print(str, *grouped);
   }
+
+  else if (strcmp(token, "LEFT_PAREN") == 0) {
+    fprintf(stdout, "(group ");
+    *grouped = *grouped + 1;
+    return (ParseResult) {1};
+  }
+
+  else if (strcmp(token, "RIGHT_PAREN") == 0) {
+    *grouped--;
+    parse_print(")", *grouped);
+  }
+
+  return (ParseResult) {0};
 }
 
 void parse(char *content) {
@@ -489,6 +514,7 @@ void parse(char *content) {
   char buffer[BUFFER_SIZE];
   char *line = scanned.tokens;
   char *newline;
+  int grouped = 0;
 
   while (line != NULL) {
     newline = strchr(line, '\n');
@@ -498,7 +524,7 @@ void parse(char *content) {
     }
 
     if (strlen(line) > 0) {
-      parse_line(line);
+      parse_line(line, &grouped);
     }
 
     if (newline != NULL) {
